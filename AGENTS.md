@@ -575,184 +575,130 @@ select cron.schedule(
 
 ## 6. ASCEND INDEX v1 — FÓRMULA EXATA
 
-`supabase/functions/_shared/index-engine.ts`. Determinístico. Zero LLM.
-Ordena por `played_at` **ASC** em todos os cálculos temporais.
+**Não invente nada aqui.** O Index final terá 11 pilares; hoje só 4 têm fonte de dados. Os outros 7 aparecem na UI como bloqueados — é intencional e faz parte do produto.
 
-### Constantes (literais, não parametrizar)
-
-```ts
-const MIN_MATCHES_CALIBRATION = 10;   // < 10 → is_calibrating = true
-const WINDOW_MATCHES          = 50;   // últimas N partidas consideradas
-const WINDOW_DAYS_PARTICIPATION = 30; // janela da participação
-
-// Pesos do total_score (soma = 100):
-const W_PERFORMANCE   = 45;
-const W_CONSISTENCY   = 20;
-const W_EVOLUTION     = 20;
-const W_PARTICIPATION = 15;
-
-// rating_approx (peso 70% em ADR+KR, 30% em KD+HS):
-const W_ADR = 0.35;   // dentro do rating_approx
-const W_KR  = 0.35;
-const W_KD  = 0.20;
-const W_HS  = 0.10;
-
-// Referências de escala (0-100):
-const REF_ADR_MAX = 120;   // 120 ADR → 100 pts
-const REF_KR_MAX  = 1.20;  // 1.2 K/R → 100 pts
-const REF_KD_MAX  = 1.80;  // 1.8 K/D → 100 pts
-const REF_HS_MAX  = 70;    // 70% HS  → 100 pts (headshot_pct é 0-100)
-
-// Consistência: desvio-padrão do rating_approx nas últimas WINDOW.
-// score = clamp(100 - stddev * K_STDDEV, 0, 100)
-const K_STDDEV = 4.0;
-
-// Evolução: regressão linear (least squares) de rating_approx vs índice
-// da partida (0..n-1), ordenado por played_at ASC.
-// slope > 0 → melhorando. score = clamp(50 + slope * K_SLOPE, 0, 100).
-const K_SLOPE = 200;
-
-// Participação: score = clamp(matches_in_30d * 3.33, 0, 100)  → 30 jogos = 100
-const K_PART = 3.33;
-```
-
-### Cálculo por partida (`rating_approx`)
+### Helper
 
 ```ts
-function ratingApprox(s: MatchStat): number {
-  const adr = clamp01(s.adr / REF_ADR_MAX) * 100;
-  const kr  = clamp01(s.kr_ratio / REF_KR_MAX) * 100;
-  const kd  = clamp01(s.kd_ratio / REF_KD_MAX) * 100;
-  const hs  = clamp01(s.headshot_pct / REF_HS_MAX) * 100; // headshot_pct em 0-100
-  return W_ADR * adr + W_KR * kr + W_KD * kd + W_HS * hs;
+// linear por partes, clamp em [0,1]. Pré-condição: low < mid < high.
+function norm(x: number, low: number, mid: number, high: number): number {
+  if (!Number.isFinite(x)) throw new Error(`norm: input não-finito: ${x}`);
+  if (x <= low) return 0;
+  if (x >= high) return 1;
+  if (x <= mid) return 0.5 * (x - low) / (mid - low);
+  return 0.5 + 0.5 * (x - mid) / (high - mid);
 }
 ```
 
-`clamp01(x) = min(1, max(0, x))`. `headshot_pct` chega **0–100**. Se
-passar 0–1 por engano, o pilar zera silenciosamente. Testar com valor
-conhecido.
+Métrica ausente/null **nunca** chega no `norm()` — é tratada antes, pela regra de redistribuição.
 
-### Pilares
+### `rating_approx` (por partida)
 
-```ts
-function performanceScore(stats: MatchStat[]): number {
-  const window = stats.slice(-WINDOW_MATCHES);
-  const avg = window.reduce((a, s) => a + ratingApprox(s), 0) / window.length;
-  return clamp(avg, 0, 100);
-}
-
-function consistencyScore(stats: MatchStat[]): number {
-  const window = stats.slice(-WINDOW_MATCHES);
-  const ratings = window.map(ratingApprox);
-  const mean = ratings.reduce((a,b) => a+b, 0) / ratings.length;
-  const variance = ratings.reduce((a,r) => a + (r-mean)**2, 0) / ratings.length;
-  const stddev = Math.sqrt(variance);
-  return clamp(100 - stddev * K_STDDEV, 0, 100);
-}
-
-function evolutionScore(stats: MatchStat[]): number {
-  const window = stats.slice(-WINDOW_MATCHES); // já ordenado por played_at ASC
-  const n = window.length;
-  if (n < 2) return 50;
-  const xs = window.map((_, i) => i);
-  const ys = window.map(ratingApprox);
-  const meanX = xs.reduce((a,b) => a+b, 0) / n;
-  const meanY = ys.reduce((a,b) => a+b, 0) / n;
-  let num = 0, den = 0;
-  for (let i = 0; i < n; i++) {
-    num += (xs[i] - meanX) * (ys[i] - meanY);
-    den += (xs[i] - meanX) ** 2;
-  }
-  const slope = den === 0 ? 0 : num / den;
-  return clamp(50 + slope * K_SLOPE, 0, 100);
-}
-
-function participationScore(matches: Match[]): number {
-  const cutoff = Date.now() - WINDOW_DAYS_PARTICIPATION * 24 * 3600 * 1000;
-  const count = matches.filter(m => new Date(m.played_at).getTime() >= cutoff).length;
-  return clamp(count * K_PART, 0, 100);
-}
+```
+0.45 * norm(kr_ratio,     0.50, 0.68, 0.85)
+0.25 * norm(adr,          55,   75,   95)
+0.20 * norm(kd_ratio,     0.80, 1.05, 1.35)
+0.10 * norm(headshot_pct, 35,   48,   60)
 ```
 
-### Agregação final e persistência
+⚠️ `headshot_pct` está na escala **0–100** (47.0 = 47%). `norm(0.47, 35, 48, 60)` retorna **0 sempre** e zeraria 10% do rating de todo jogador sem erro visível. Valide `0 <= v <= 100`; fora da faixa = trate como ausente e logue.
 
-```ts
-export async function computeIndex(userId: string) {
-  const matches = await loadMatchesAsc(userId);           // ORDER BY played_at ASC
-  const stats   = await loadMatchStatsFor(matches);       // pareado 1:1
+**Métrica ausente (ADR é o caso comum):** média ponderada só sobre as disponíveis —
+`rating_approx = Σ(wᵢ × normᵢ) / Σ(wᵢ)`. Sem ADR: `(0.45·norm_kr + 0.20·norm_kd + 0.10·norm_hs) / 0.75`.
+Com menos de 2 das 4 métricas: exclua a partida do Index (`rating_approx = null`; ela continua em `matches`/`match_stats`). Registre no `breakdown` quais métricas faltaram e em quantas partidas.
 
-  const matchesConsidered = Math.min(stats.length, WINDOW_MATCHES);
-  const isCalibrating     = stats.length < MIN_MATCHES_CALIBRATION;
+> **Nota de arquitetura:** as bandas são fixas porque no lançamento não existe base de usuários pra calcular percentil. Isole a normalização atrás dessa única função — quando houver massa, troca-se banda fixa por percentil dentro da coorte (mesmo nível/elo) sem tocar em mais nada.
 
-  const perf = performanceScore(stats);
-  const cons = consistencyScore(stats);
-  const evo  = evolutionScore(stats);
-  const part = participationScore(matches);
+### Pilar 1 — Performance (peso 40%)
 
-  const total = (
-    W_PERFORMANCE * perf +
-    W_CONSISTENCY * cons +
-    W_EVOLUTION   * evo  +
-    W_PARTICIPATION * part
-  ) / 100;
+Média de `rating_approx` das últimas 30 partidas. Já é 0..1.
 
-  const breakdown = {
-    pillars: { performance: perf, consistency: cons, evolution: evo, participation: part },
-    weights: { performance: W_PERFORMANCE, consistency: W_CONSISTENCY, evolution: W_EVOLUTION, participation: W_PARTICIPATION },
-    matches_considered: matchesConsidered,
-    insights: computeInsights({ perf, cons, evo, part, stats, matches }), // §7
-  };
+### Pilar 2 — Consistência (peso 25%)
 
-  // DEDUPE EM CÓDIGO (sem UNIQUE no banco):
-  const last = await loadLastSnapshot(userId);
-  const round4 = (x: number) => Math.round(x * 10000) / 10000;
-  const same = last
-    && last.matches_considered === matchesConsidered
-    && round4(last.performance_score)   === round4(perf)
-    && round4(last.consistency_score)   === round4(cons)
-    && round4(last.evolution_score)     === round4(evo)
-    && round4(last.participation_score) === round4(part);
-  if (same) return last;
-
-  return insertSnapshot({
-    user_id: userId,
-    total_score: total,
-    performance_score: perf,
-    consistency_score: cons,
-    evolution_score: evo,
-    participation_score: part,
-    matches_considered: matchesConsidered,
-    is_calibrating: isCalibrating,
-    breakdown,
-  });
-}
+```
+n = partidas consideradas (máx. 30 mais recentes)
+se n < 2                  → consistency = 0.5   (neutro)
+mean = média(rating_approx)
+se mean < 0.1             → consistency = 0     (fundo da escala: cv explode e não significa nada)
+sd = desvio-padrão AMOSTRAL (divisor n−1; = stddev_samp do Postgres)
+cv = sd / mean
+consistency = 1 − norm(cv, 0.12, 0.24, 0.40)
 ```
 
-Dedupe é em código porque `UNIQUE` no banco proíbe o usuário de voltar a
-uma combinação de scores que já teve.
+### Pilar 3 — Evolução (peso 20%)
+
+⚠️ **Ordene por `played_at ASC` (mais antiga primeiro).** A query natural pra "últimas 30" é `ORDER BY played_at DESC` — se indexar nessa ordem, o slope **inverte de sinal** e o produto mostra "em queda" pra quem está melhorando.
+
+```
+x_i = 0,1,...,n-1 (mais antiga = 0); y_i = rating_approx
+slope = Σ(x_i−x̄)(y_i−ȳ) / Σ(x_i−x̄)²
+se n < 10 ou denominador = 0 → evolution = 0.5 (slope com poucas partidas é ruído)
+evolution = norm(slope, -0.004, 0, +0.004)
+```
+
+Unidade: pontos de rating (escala 0–1) por partida. Sanidade: ±0.004 × 30 = ±0.12 de deriva total pra saturar o pilar.
+
+### Pilar 4 — Participação (peso 15%)
+
+```
+participation = 0.5 * norm(dias_ativos, 2, 8, 16)
+              + 0.5 * norm(partidas,    5, 25, 50)
+```
+
+As janelas são **intencionalmente diferentes**: pilares 1–3 medem skill sobre as últimas 30 **PARTIDAS**; participação mede hábito sobre os últimos 30 **DIAS**. Não uniformize.
+
+`dias_ativos` = dias-calendário distintos com ≥1 partida, no fuso **America/Sao_Paulo**:
+`count(distinct (played_at AT TIME ZONE 'America/Sao_Paulo')::date)` filtrando `played_at >= now() - interval '30 days'`.
+
+`partidas` = `count(*)` no mesmo filtro de 30 dias.
+
+### Score final
+
+```
+total_score = Math.round(1000 × (0.40·performance + 0.25·consistency
+                               + 0.20·evolution + 0.15·participation))
+```
+
+Inteiro em [0, 1000]. Pesos somam 1.0.
+
+### Calibração e cadência de snapshot
+
+- `compute-index` **sempre** calcula e insere quando n ≥ 1 — o histórico desde o dia 1 é o produto — com `is_calibrating = (matches_considered < 10)`. Com n = 0, não insira.
+- A UI **nunca** exibe `total_score` de snapshot com `is_calibrating = true`. Mostra "Calibrando — faltam N partidas" (N = 10 − matches_considered). O gráfico de evolução só plota `is_calibrating = false`.
+- **Dedupe:** antes de inserir, compare com o último snapshot a tupla (`matches_considered`, `total_score`, 4 pilares arredondados a 4 casas). Tudo igual → não insira. *(Sem isso o cron de 6h cria 4 snapshots idênticos por dia.)* Participação muda sozinha com a janela deslizante, então snapshots legítimos continuam acontecendo.
+- **Delta do dashboard:** `total_score` do snapshot mais recente menos o do mais recente com `computed_at <= now() - interval '7 days'`. Se não existir o antigo, **oculte o delta** — nada de 0 fake.
+
+### Pilares bloqueados (renderize, desabilitados, com a fonte declarada)
+
+| Pilar | Fonte futura |
+|---|---|
+| Comunicação | Peer review do time |
+| Trabalho em equipe | Peer review do time |
+| Liderança | Avaliação de treinador |
+| Disciplina | Check-in de rotina e treinos |
+| Fair Play | Reports e punições das plataformas |
+| Conteúdo | Integração Twitch / YouTube |
+| Marca pessoal | ASCEND Studio |
+
+### Transparência é obrigatória
+
+Todo pilar exibido é clicável e abre um painel com os inputs crus do `breakdown`. O usuário sempre consegue responder "por que meu score é esse?". Não é feature secundária — é o que separa a ASCEND de uma caixa-preta.
 
 ---
 
-## 7. INSIGHTS DETERMINÍSTICOS
+## 7. INSIGHTS DETERMINÍSTICOS (sem LLM)
 
-Sem LLM. Regras textuais, avaliadas em ordem, no máximo 3 insights por
-snapshot. Persistidos em `index_snapshots.breakdown.insights` (array de
-`{ code, text, tone }`).
+Card "Leitura da ASCEND" no dashboard, com até 3 frases calculadas por regra a partir dos dados reais. Nenhuma chamada de IA, nenhum SDK. Módulo isolado `insights.ts` dentro do compute-index; persista as frases no `breakdown`. **Este módulo é a semente da futura camada de IA.**
 
-Regras (ordem de prioridade):
+- **Evolução:** se |variação| da média de `rating_approx` (últimas 10 vs 10 anteriores) ≥ 5% → "Seu rating médio {subiu|caiu} {X}% nas últimas 10 partidas."
+- **Consistência:** cv < 0,12 → "Você está jogando de forma muito consistente."; cv > 0,40 → "Sua performance está oscilando acima do normal."
+- **Mapa:** com ≥3 partidas no mesmo mapa nos últimos 30 dias → "Seu melhor mapa do mês foi {mapa} (rating médio {X})."
+- **Ritmo:** "Você jogou {N} partidas em {M} dias ativos nos últimos 30 dias."
 
-1. `is_calibrating` → `"Faltam N partidas para calibrar seu Índice."` (tone `neutral`).
-2. `participation < 30` → `"Você jogou pouco nos últimos 30 dias."` (tone `warn`).
-3. `evolution > 65` → `"Sua performance está subindo."` (tone `positive`).
-4. `evolution < 35` → `"Sua performance vem caindo."` (tone `warn`).
-5. `consistency < 40` → `"Suas partidas oscilam muito."` (tone `warn`).
-6. `consistency > 75 && performance > 60` → `"Consistente e acima da média."` (tone `positive`).
-7. `performance > 80` → `"Você está no topo."` (tone `positive`).
-8. `performance < 30` → `"Foque em fundamentos: ADR e K/R."` (tone `warn`).
-
-Frontend só lê e renderiza. Nunca gera insight.
+Cada frase só renderiza se o gatilho existir. Com <10 partidas o card não aparece. Números em pt-BR. Proibida frase genérica de preenchimento.
 
 ---
+
 
 ## 8. TABELA DE MAPEAMENTO FACEIT → SCHEMA
 
