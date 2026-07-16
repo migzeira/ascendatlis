@@ -57,10 +57,11 @@ export const Route = createFileRoute("/p/$username")({
 });
 
 function PublicProfilePage() {
-  const data = Route.useLoaderData();
+  const data = Route.useLoaderData() as NonNullable<Awaited<ReturnType<typeof getPublicProfile>>>;
   const { profile, snapshot, series, matches } = data;
   const showScore = snapshot && !snapshot.is_calibrating;
   const name = profile.display_name || profile.username;
+
 
   return (
     <PublicShell>
