@@ -134,6 +134,13 @@
     font-family: var(--font-sans);
   }
 
+  /* Every consumer of the display family gets Archivo's expanded width axis. */
+  .font-display,
+  [style*="--font-display"],
+  [style*="var(--font-display)"] {
+    font-stretch: 125%;
+  }
+
   /* Remove default shadow on surface primitives (shadcn overrides). */
   [data-slot="card"],
   [role="dialog"],
