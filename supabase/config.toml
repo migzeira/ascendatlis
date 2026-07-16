@@ -2,3 +2,18 @@ project_id = "amuypyniqbizahbgfrbk"
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.faceit-oauth-start]
+verify_jwt = true
+
+[functions.faceit-oauth-callback]
+verify_jwt = false
+
+[functions.faceit-sync]
+verify_jwt = true
+
+[functions.faceit-sync-all]
+verify_jwt = true
+
+[functions.compute-index]
+verify_jwt = true
