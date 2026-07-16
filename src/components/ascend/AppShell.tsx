@@ -9,10 +9,11 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: "Início", to: "/" },
+  { label: "Dashboard", to: "/dashboard" },
   { label: "Conexões", to: "/connect" },
   { label: "Ajustes", to: "/settings" },
 ];
+
 
 
 /**
