@@ -2,17 +2,23 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const USERNAME_RE = /^[a-z0-9](?:[a-z0-9_.-]{1,28}[a-z0-9])$/;
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+const RESERVED_USERNAMES = new Set([
+  "admin", "api", "settings", "dashboard", "connect", "onboarding",
+  "p", "login", "auth", "privacidade", "termos",
+]);
 
 const usernameSchema = z
   .string()
   .trim()
-  .min(3, "Mínimo 3 caracteres.")
-  .max(30, "Máximo 30 caracteres.")
   .transform((s) => s.toLowerCase())
   .refine((s) => USERNAME_RE.test(s), {
-    message: "Use letras, números, _, . ou -. Não pode começar/terminar com pontuação.",
+    message: "3 a 20 caracteres. Só letras minúsculas, números e _.",
+  })
+  .refine((s) => !RESERVED_USERNAMES.has(s), {
+    message: "Este nome é reservado. Escolha outro.",
   });
+
 
 /** Devolve o profile do usuário autenticado. */
 export const getMyProfile = createServerFn({ method: "GET" })

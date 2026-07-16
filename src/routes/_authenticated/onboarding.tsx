@@ -142,7 +142,7 @@ function StepUsername({ onNext }: { onNext: () => void }) {
           className="mt-1.5"
           required
           minLength={3}
-          maxLength={30}
+          maxLength={20}
         />
         <p
           className="mt-2 text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground"
@@ -154,7 +154,7 @@ function StepUsername({ onNext }: { onNext: () => void }) {
               ? "disponível"
               : available === false
                 ? "já em uso"
-                : "3 a 30 caracteres; letras, números, _ . -"}
+                : "3 a 20 caracteres; a-z, 0-9, _"}
         </p>
       </div>
 
