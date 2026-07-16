@@ -158,7 +158,7 @@ function SettingsPage() {
               onChange={(e) => setUsername(e.target.value.toLowerCase())}
               className="mt-1.5"
               minLength={3}
-              maxLength={30}
+              maxLength={20}
               required
             />
             <p
