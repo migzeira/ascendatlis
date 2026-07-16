@@ -77,25 +77,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Ascend" },
-      { name: "description", content: "Ascend" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Ascend" },
-      { property: "og:description", content: "Ascend" },
+      { title: "ASCEND — o índice do seu CS2" },
+      {
+        name: "description",
+        content:
+          "Um índice único de 0 a 1000 que traduz sua evolução no Counter-Strike 2. Conecte sua conta FACEIT e acompanhe performance, consistência, evolução e ritmo — sem achismo.",
+      },
+      { property: "og:title", content: "ASCEND — o índice do seu CS2" },
+      {
+        property: "og:description",
+        content:
+          "Um índice único de 0 a 1000 que traduz sua evolução no Counter-Strike 2.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Ascend" },
-      { name: "twitter:description", content: "Ascend" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/342c623c-40dd-4470-ac74-7e073a8319e2/id-preview-078c6035--5724d9bc-3960-4190-b318-825ca9056192.lovable.app-1784140421645.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/342c623c-40dd-4470-ac74-7e073a8319e2/id-preview-078c6035--5724d9bc-3960-4190-b318-825ca9056192.lovable.app-1784140421645.png" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
     ],
   }),
   shellComponent: RootShell,
@@ -106,11 +105,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR" className="dark">
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="bg-background text-foreground antialiased">
         {children}
         <Scripts />
       </body>
