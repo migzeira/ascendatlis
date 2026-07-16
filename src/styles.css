@@ -11,9 +11,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * ASCEND design system (dark-only).
- * Colors: oklch. No hex. No hard-coded Tailwind color classes.
- * Semantic shadcn variables are overridden below to point at ASCEND tokens.
+ * ASCEND / ATLIS design system (dark-only).
+ * Token values are literal — do not round or "improve".
+ * Semantic shadcn vars are aliased to ATLIS tokens.
  */
 
 @theme inline {
@@ -41,16 +41,24 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-success: var(--positive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-chart-1: var(--accent);
+  --color-chart-2: var(--positive);
+  --color-chart-3: var(--text-secondary);
+  --color-chart-4: var(--negative);
+  --color-chart-5: var(--text);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -68,52 +76,50 @@
 /* Dark theme is the only theme. :root and .dark share the same tokens. */
 :root,
 .dark {
-  --radius: 0.5rem;
+  --radius: 0.375rem;
 
-  --background: oklch(0.14 0 0);
-  --foreground: oklch(0.98 0 0);
+  /* ATLIS canonical tokens — literal values, do not modify. */
+  --bg:             oklch(14.52% 0.0021 286.13);
+  --surface:        oklch(18.76% 0.0040 286.01);
+  --surface-2:      oklch(21.91% 0.0058 285.91);
+  --border:         oklch(27.02% 0.0073 285.90);
+  --text:           oklch(98.51% 0 0);
+  --text-secondary: oklch(71.05% 0.0072 286.22);
+  --text-muted:     oklch(53.99% 0.0077 286.14);
+  --accent:         oklch(68.37% 0.2120 40.59);
+  --accent-hover:   oklch(72.47% 0.1824 46.21);
+  --accent-subtle:  oklch(68.37% 0.2120 40.59 / 0.10);
+  --positive:       oklch(75.56% 0.2082 146.98);
+  --negative:       oklch(66.33% 0.2236 28.29);
 
-  --card: oklch(0.17 0 0);
-  --card-foreground: oklch(0.98 0 0);
+  /* shadcn semantic aliases → ATLIS tokens. */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--bg);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-secondary);
+  /* --accent stays ATLIS orange; shadcn "accent" hover surface uses --surface-2. */
+  --accent-foreground: var(--bg);
+  --destructive: var(--negative);
+  --destructive-foreground: var(--text);
+  --input: var(--border);
+  --ring: oklch(68.37% 0.2120 40.59 / 0.4);
 
-  --popover: oklch(0.17 0 0);
-  --popover-foreground: oklch(0.98 0 0);
-
-  --primary: oklch(0.72 0.19 45);
-  --primary-foreground: oklch(0.15 0 0);
-
-  --secondary: oklch(0.22 0 0);
-  --secondary-foreground: oklch(0.98 0 0);
-
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.65 0 0);
-
-  --accent: oklch(0.22 0 0);
-  --accent-foreground: oklch(0.98 0 0);
-
-  --destructive: oklch(0.62 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-
-  --success: oklch(0.72 0.18 145);
-
-  --border: oklch(0.28 0 0);
-  --input: oklch(0.28 0 0);
-  --ring: oklch(0.72 0.19 45);
-
-  --chart-1: oklch(0.72 0.19 45);
-  --chart-2: oklch(0.72 0.18 145);
-  --chart-3: oklch(0.65 0 0);
-  --chart-4: oklch(0.62 0.22 25);
-  --chart-5: oklch(0.98 0 0);
-
-  --sidebar: oklch(0.12 0 0);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.72 0.19 45);
-  --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.22 0 0);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.28 0 0);
-  --sidebar-ring: oklch(0.72 0.19 45);
+  --sidebar: var(--bg);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: oklch(68.37% 0.2120 40.59 / 0.4);
 }
 
 @layer base {
@@ -126,7 +132,6 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
   }
 
   /* Remove default shadow on surface primitives (shadcn overrides). */
