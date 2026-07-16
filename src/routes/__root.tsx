@@ -119,6 +119,35 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  // Único listener global de sessão (spec §10 / integração Supabase):
+  // - redireciona ao /auth em SIGNED_OUT (sessão expirada = 401 vira signOut automático)
+  // - invalida cache em SIGNED_IN / USER_UPDATED
+  useEffect(() => {
+    import("@/integrations/supabase/client").then(({ supabase }) => {
+      const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+        if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") {
+          return;
+        }
+        router.invalidate();
+        if (event === "SIGNED_OUT") {
+          queryClient.cancelQueries();
+          queryClient.clear();
+        } else {
+          queryClient.invalidateQueries();
+        }
+      });
+      // guarda pra cleanup via closure fora do effect
+      (window as unknown as { __ascendAuthSub?: { unsubscribe: () => void } }).__ascendAuthSub =
+        sub.subscription;
+    });
+    return () => {
+      const w = window as unknown as { __ascendAuthSub?: { unsubscribe: () => void } };
+      w.__ascendAuthSub?.unsubscribe();
+      w.__ascendAuthSub = undefined;
+    };
+  }, [queryClient, router]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -127,3 +156,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
