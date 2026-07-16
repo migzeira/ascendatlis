@@ -159,32 +159,37 @@ export const faceitProvider: Provider = {
       i1?: string; // mapa em alguns payloads
     };
     const hist: HistItem[] = [];
-    let from = 0;
+    // /history: `from` é timestamp Unix em SEGUNDOS (limite inferior da janela);
+    // 0 = desde sempre. Paginação é via `offset` (máx 1000).
+    let offset = 0;
     const pageSize = 100;
+    const HISTORY_OFFSET_MAX = 1000;
     while (true) {
       const url =
         `${DATA_BASE}/players/${providerUserId}/history` +
-        `?game=cs2&from=${from}&limit=${pageSize}`;
+        `?game=cs2&from=0&offset=${offset}&limit=${pageSize}`;
       const page = (await withBackoff(() => fetchJson(url, { headers }))) as {
         items?: HistItem[];
       };
       const items = page.items ?? [];
       hist.push(...items);
       if (items.length < pageSize) break;
-      from += pageSize;
-      if (from >= 2000) break; // sanity: histórico muito longo
+      offset += pageSize;
+      if (offset >= HISTORY_OFFSET_MAX) break;
     }
 
-    // 2) Bulk stats — 1 chamada por 100.
+    // 2) Bulk stats — /games/cs2/stats: offset máx 200, limit máx 100.
+    //    Unidades from/to aqui são MILISSEGUNDOS (não usamos, mas anotado).
     type StatItem = {
       stats: Record<string, string>;
     };
     const statsByMatch = new Map<string, Record<string, string>>();
-    from = 0;
+    const STATS_OFFSET_MAX = 200;
+    let statsOffset = 0;
     while (true) {
       const url =
         `${DATA_BASE}/players/${providerUserId}/games/cs2/stats` +
-        `?offset=${from}&limit=${pageSize}`;
+        `?offset=${statsOffset}&limit=${pageSize}`;
       const page = (await withBackoff(() => fetchJson(url, { headers }))) as {
         items?: StatItem[];
       };
@@ -194,9 +199,10 @@ export const faceitProvider: Provider = {
         if (mid) statsByMatch.set(String(mid), it.stats);
       }
       if (items.length < pageSize) break;
-      from += pageSize;
-      if (from >= 2000) break;
+      statsOffset += pageSize;
+      if (statsOffset >= STATS_OFFSET_MAX) break;
     }
+
 
     const matches: NormalizedMatch[] = [];
     const stats: NormalizedMatchStats[] = [];
